@@ -1,0 +1,26 @@
+name: Run Scraper
+on:
+  schedule:
+    - cron: '*/20 * * * *' # 每 20 分鐘跑一次
+  workflow_dispatch:
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run Python
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          pip install requests beautifulsoup4
+          python scraper.py
+      - name: Save
+        run: |
+          git config --global user.name "Bot"
+          git config --global user.email "bot@github.com"
+          git add last.txt
+          git commit -m "update" || exit 0
+          git push
