@@ -1,8 +1,8 @@
-name: Run Scraper
+name: School News Bot
 on:
   schedule:
-    - cron: '*/20 * * * *' # 每 20 分鐘跑一次
-  workflow_dispatch:
+    - cron: '*/20 * * * *' # 每 20 分鐘檢查一次
+  workflow_dispatch: # 允許手動測試
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -17,10 +17,10 @@ jobs:
         run: |
           pip install requests beautifulsoup4
           python scraper.py
-      - name: Save
+      - name: Save Status
         run: |
           git config --global user.name "Bot"
           git config --global user.email "bot@github.com"
-          git add last.txt
-          git commit -m "update" || exit 0
+          git add last_news.txt
+          git commit -m "Update last news" || exit 0
           git push
