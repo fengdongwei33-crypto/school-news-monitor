@@ -21,6 +21,6 @@ jobs:
         run: |
           git config --global user.name "Bot"
           git config --global user.email "bot@github.com"
-          git add last_news.txt
+          git add last_news.txt last_lc_news.txt
           git commit -m "Update last news" || exit 0
           git push
