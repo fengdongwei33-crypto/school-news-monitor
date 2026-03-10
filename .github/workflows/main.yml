@@ -1,8 +1,6 @@
 name: School News Bot
 on:
-  schedule:
-    - cron: '*/20 * * * *'
-  repository_dispatch:     # 加入這行，接受外部點名
+  repository_dispatch:
     types: [check_news]
   workflow_dispatch:
 jobs:
