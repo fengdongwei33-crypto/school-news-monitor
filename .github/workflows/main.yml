@@ -1,8 +1,8 @@
 name: School News Bot
 on:
   schedule:
-    - cron: '*/20 * * * *' # 每 20 分鐘檢查一次
-  workflow_dispatch: # 允許手動測試
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -10,17 +10,19 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v3
-      - name: Run Python
+      - name: Run
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
         run: |
           pip install requests beautifulsoup4
           python scraper.py
-      - name: Save Status
+      - name: Save
         run: |
           git config --global user.name "Bot"
           git config --global user.email "bot@github.com"
-          git add last_news.txt last_lc_news.txt
-          git commit -m "Update last news" || exit 0
+          git add last_news.txt last_lc_news.txt last_mail_id.txt
+          git commit -m "Update" || exit 0
           git push
