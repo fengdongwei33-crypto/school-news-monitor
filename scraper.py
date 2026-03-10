@@ -5,7 +5,7 @@ import imaplib
 import email
 from email.header import decode_header
 
-# --- 1. 設定區 ---
+# --- 設定監控目標 ---
 TARGETS = [
     {"name": "台科大公告", "url": "https://bulletin.ntust.edu.tw/p/403-1045-1391-1.php?Lang=zh-tw", "file": "last_news.txt", "selector": ".table_01 .prop_title a"},
     {"name": "語言中心", "url": "https://lc.ntust.edu.tw/p/403-1070-1053-1.php?Lang=zh-tw", "file": "last_lc_news.txt", "selector": ".mtitle a"}
@@ -33,9 +33,8 @@ def clean_body(msg):
         body = msg.get_payload(decode=True).decode(errors='ignore')
     return " ".join(body.split())[:250].replace('<', '&lt;').replace('>', '&gt;')
 
-# --- 2. 執行監控 ---
 def run():
-    # 網頁公告部分
+    # 1. 網頁公告檢查
     for t in TARGETS:
         try:
             res = requests.get(t["url"], timeout=20)
@@ -50,30 +49,34 @@ def run():
                     with open(t["file"], "w", encoding="utf-8") as f: f.write(title)
         except: pass
 
-    # Webmail 部分
+    # 2. 郵件迴圈檢查 (確保不漏信且過濾雜訊)
     if not EMAIL_USER: return
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("INBOX")
         _, msgs = mail.search(None, "ALL")
-        last_id = msgs[0].split()[-1].decode()
-        old_id = open("last_mail_id.txt", "r").read().strip() if os.path.exists("last_mail_id.txt") else ""
-        if last_id != old_id:
-            _, data = mail.fetch(last_id, "(RFC822)")
-            msg = email.message_from_bytes(data[0][1])
-            subj, enc = decode_header(msg["Subject"])[0]
-            if isinstance(subj, bytes): subj = subj.decode(enc or "utf-8")
+        all_ids = msgs[0].split()
+        if not all_ids: return
+        
+        latest_id_int = int(all_ids[-1])
+        old_id_int = open("last_mail_id.txt", "r").read().strip() if os.path.exists("last_mail_id.txt") else 0
+        old_id_int = int(old_id_int) if old_id_int else 0
+
+        if latest_id_int > old_id_int:
+            # 檢查中間每一封信 (最多往回看5封避免刷屏)
+            for i in range(max(old_id_int + 1, latest_id_int - 4), latest_id_int + 1):
+                _, data = mail.fetch(str(i), "(RFC822)")
+                msg = email.message_from_bytes(data[0][1])
+                subj, enc = decode_header(msg["Subject"])[0]
+                if isinstance(subj, bytes): subj = subj.decode(enc or "utf-8")
+                
+                # 過濾公佈欄與 Moodle 登入信
+                if not any(kw in subj for kw in ["公佈欄", "Bulletin", "Moodle", "登入紀錄"]):
+                    summary = clean_body(msg)
+                    send_tg(f"<b>📩 Webmail 新郵件</b>\n<b>標題:</b> {subj}\n\n<b>內容摘要:</b>\n{summary}...")
             
-            # 【精準過濾】排除公佈欄與 Moodle 登入通知
-            ignore = ["公佈欄", "Bulletin", "Moodle教學平台 新登入紀錄", "Moodle教學平台: 新登入紀錄"]
-            if any(kw in subj for kw in ignore):
-                print(f"自動過濾重複或無用郵件: {subj}")
-            else:
-                summary = clean_body(msg)
-                send_tg(f"<b>📩 Webmail 新郵件</b>\n<b>標題:</b> {subj}\n\n<b>內容摘要:</b>\n{summary}...")
-            
-            with open("last_mail_id.txt", "w") as f: f.write(last_id)
+            with open("last_mail_id.txt", "w") as f: f.write(str(latest_id_int))
         mail.logout()
     except: pass
 
