@@ -92,7 +92,7 @@ def run():
                 if isinstance(subj, bytes): subj = subj.decode(enc or "utf-8")
                 
                 # 過濾：公佈欄、Moodle、以及轉寄的校內公告
-                ignore = ["公佈欄", "Bulletin", "Moodle", "[TaiwanTech]"]
+                ignore = ["臺科公佈欄(NTUST Bulletin)", "新登入紀錄"]
                 if not any(kw in subj for kw in ignore):
                     summary = clean_body(msg)
                     send_tg(f"<b>📩 Webmail 新郵件</b>\n<b>標題:</b> {subj}\n\n<b>摘要:</b>\n{summary}...")
