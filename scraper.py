@@ -4,9 +4,10 @@ import os
 import imaplib
 import email
 from email.header import decode_header
+import urllib.parse
+import time
 
 # --- 1. 設定區 ---
-# 這裡將兩個網頁都納入迴圈檢查
 TARGETS = [
     {"name": "台科大公告", "url": "https://bulletin.ntust.edu.tw/p/403-1045-1391-1.php?Lang=zh-tw", "file": "last_news.txt", "selector": ".table_01 .prop_title a"},
     {"name": "語言中心", "url": "https://lc.ntust.edu.tw/p/403-1070-1053-1.php?Lang=zh-tw", "file": "last_lc_news.txt", "selector": ".mtitle a"}
@@ -19,6 +20,7 @@ def send_tg(msg):
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
     payload = {"chat_id": TG_CHAT_ID, "text": msg[:4000], "parse_mode": "HTML", "disable_web_page_preview": True}
     requests.post(url, data=payload)
+    time.sleep(1) # 避免連續推播被 Telegram API 阻擋
 
 def clean_body(msg):
     body = ""
@@ -31,14 +33,28 @@ def clean_body(msg):
                 elif part.get_content_type() == "text/html":
                     html = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='ignore')
                     body = BeautifulSoup(html, "html.parser").get_text()
+                    break # 找到 HTML 也要跳出，避免繼續覆蓋
         else:
             body = msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='ignore')
-    except: pass
+    except Exception as e:
+        print(f"Body parsing error: {e}")
     return " ".join(body.split())[:250].replace('<', '&lt;').replace('>', '&gt;')
+
+# 解析多段式郵件標題
+def get_decoded_subject(msg):
+    subject_header = msg.get("Subject", "(無主旨)")
+    decoded_list = decode_header(subject_header)
+    subj = ""
+    for text, charset in decoded_list:
+        if isinstance(text, bytes):
+            subj += text.decode(charset or 'utf-8', errors='ignore')
+        else:
+            subj += text
+    return subj
 
 # --- 2. 執行監控 ---
 def run():
-    # 網頁公告部分：兩個來源都檢查前 10 則
+    # --- 網頁公告部分 ---
     for t in TARGETS:
         try:
             res = requests.get(t["url"], timeout=20)
@@ -46,58 +62,71 @@ def run():
             soup = BeautifulSoup(res.text, 'html.parser')
             items = soup.select(t["selector"])[:10]
             
-            # 讀取舊紀錄 (為了精準，建議存成一個 list 或比對最新一則)
-            old_title = open(t["file"], "r").read().strip() if os.path.exists(t["file"]) else ""
+            # 讀取舊紀錄 (改為讀取多筆清單，避免排序亂掉導致重複推播)
+            old_titles = open(t["file"], "r", encoding="utf-8").read().splitlines() if os.path.exists(t["file"]) else []
             
-            # 從舊到新排序檢查，確保 Telegram 訊息順序正確
-            new_titles = []
-            for item in reversed(items):
+            current_titles = []
+            new_alerts = []
+            
+            for item in items:
                 title = item.get('title') or item.text.strip()
-                link = item.get('href')
+                current_titles.append(title)
+                # 處理相對路徑轉絕對路徑
+                raw_link = item.get('href')
+                link = urllib.parse.urljoin(t["url"], raw_link) if raw_link else t["url"]
                 
-                # 如果這則標題不在舊紀錄中（簡單判斷）
-                if title and title != old_title and title not in old_title:
-                    send_tg(f"<b>📢 {t['name']}</b>\n{title}\n🔗 <a href='{link}'>詳情</a>")
-                    new_titles.append(title)
+                if title and title not in old_titles:
+                    new_alerts.append(f"<b>📢 {t['name']}</b>\n{title}\n🔗 <a href='{link}'>詳情</a>")
             
-            # 更新紀錄為最新的一則標題
-            if items:
-                latest_title = items[0].get('title') or items[0].text.strip()
+            # 反轉清單，確保 Telegram 發送順序是由舊到最新
+            for alert_msg in reversed(new_alerts):
+                send_tg(alert_msg)
+            
+            # 將最新的 10 筆標題覆寫回紀錄檔
+            if current_titles:
                 with open(t["file"], "w", encoding="utf-8") as f:
-                    f.write(latest_title)
+                    f.write("\n".join(current_titles))
         except Exception as e:
             print(f"Error checking {t['name']}: {e}")
 
-    # Webmail 部分 (迴圈讀取新郵件 + 摘要 + 過濾)
+    # --- Webmail 部分 ---
     if not EMAIL_USER: return
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("INBOX")
-        _, msgs = mail.search(None, "ALL")
-        all_ids = msgs[0].split()
-        if not all_ids: return
         
-        latest_id_int = int(all_ids[-1])
-        old_id_int = 0
+        # 改用 UID 搜尋，確保刪信不會影響序號判斷
+        status, msgs = mail.uid('search', None, "ALL")
+        all_uids = msgs[0].split()
+        if not all_uids: return
+        
+        latest_uid = int(all_uids[-1])
+        old_uid = 0
         if os.path.exists("last_mail_id.txt"):
             content = open("last_mail_id.txt", "r").read().strip()
-            if content: old_id_int = int(content)
+            if content.isdigit(): old_uid = int(content)
 
-        if latest_id_int > old_id_int:
-            for i in range(max(old_id_int + 1, latest_id_int - 4), latest_id_int + 1):
-                _, data = mail.fetch(str(i), "(RFC822)")
+        if latest_uid > old_uid:
+            # 最多往前追溯 5 封，避免初次執行或中斷太久大洗版
+            start_uid = max(old_uid + 1, latest_uid - 4)
+            
+            # 因為 UID 可能不連續，我們尋找大於 old_uid 且在抓取範圍內的實際 UID
+            uids_to_fetch = [uid for uid in all_uids if start_uid <= int(uid) <= latest_uid]
+
+            for uid in uids_to_fetch:
+                _, data = mail.uid('fetch', uid, "(RFC822)")
                 msg = email.message_from_bytes(data[0][1])
-                subj, enc = decode_header(msg["Subject"])[0]
-                if isinstance(subj, bytes): subj = subj.decode(enc or "utf-8")
+                subj = get_decoded_subject(msg)
                 
-                # 過濾：公佈欄、Moodle、以及轉寄的校內公告
+                # 過濾邏輯
                 ignore = ["臺科公佈欄(NTUST Bulletin)", "新登入紀錄"]
                 if not any(kw in subj for kw in ignore):
                     summary = clean_body(msg)
                     send_tg(f"<b>📩 Webmail 新郵件</b>\n<b>標題:</b> {subj}\n\n<b>摘要:</b>\n{summary}...")
             
-            with open("last_mail_id.txt", "w") as f: f.write(str(latest_id_int))
+            with open("last_mail_id.txt", "w") as f: 
+                f.write(str(latest_uid))
         mail.logout()
     except Exception as e:
         print(f"Mail Error: {e}")
