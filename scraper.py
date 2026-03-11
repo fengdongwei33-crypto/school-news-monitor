@@ -62,10 +62,11 @@ def run():
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
             res = requests.get(t["url"], headers=headers, timeout=20)
+            print(f"[{t['name']}] 伺服器連線狀態碼: {res.status_code}")
             res.encoding = 'utf-8'
             soup = BeautifulSoup(res.text, 'html.parser')
             items = soup.select(t["selector"])[:10]
-            
+            print(f"[{t['name']}] 成功抓取到 {len(items)} 則標題")
             # 讀取舊紀錄 (改為讀取多筆清單，避免排序亂掉導致重複推播)
             old_titles = open(t["file"], "r", encoding="utf-8").read().splitlines() if os.path.exists(t["file"]) else []
             
