@@ -8,8 +8,9 @@ import urllib.parse
 import time
 
 # --- 1. 設定區 ---
+# 把公佈欄的 selector 加上 .mtitle a 作為雙重保險
 TARGETS = [
-    {"name": "台科大公告", "url": "https://bulletin.ntust.edu.tw/p/403-1045-1391-1.php?Lang=zh-tw", "file": "last_news.txt", "selector": ".table_01 .prop_title a"},
+    {"name": "台科大公告", "url": "https://bulletin.ntust.edu.tw/p/403-1045-1391-1.php?Lang=zh-tw", "file": "last_news.txt", "selector": ".mtitle a, .table_01 .prop_title a"},
     {"name": "語言中心", "url": "https://lc.ntust.edu.tw/p/403-1070-1053-1.php?Lang=zh-tw", "file": "last_lc_news.txt", "selector": ".mtitle a"}
 ]
 IMAP_SERVER = "mail.ntust.edu.tw"
@@ -57,7 +58,10 @@ def run():
     # --- 網頁公告部分 ---
     for t in TARGETS:
         try:
-            res = requests.get(t["url"], timeout=20)
+            headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+            res = requests.get(t["url"], headers=headers, timeout=20)
             res.encoding = 'utf-8'
             soup = BeautifulSoup(res.text, 'html.parser')
             items = soup.select(t["selector"])[:10]
@@ -69,7 +73,7 @@ def run():
             new_alerts = []
             
             for item in items:
-                title = item.get('title') or item.text.strip()
+                title = " ".join((item.get('title') or item.text).split())
                 current_titles.append(title)
                 # 處理相對路徑轉絕對路徑
                 raw_link = item.get('href')
