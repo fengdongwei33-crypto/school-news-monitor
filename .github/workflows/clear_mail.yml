@@ -1,0 +1,21 @@
+name: Clear Unread Mails
+
+# workflow_dispatch 代表這個動作「只允許手動點擊觸發」，不會自動跑
+on:
+  workflow_dispatch:
+
+jobs:
+  run-clear-task:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run Clear Mail Script
+        env:
+          # 直接沿用你之前已經設定好的密碼庫 (Secrets)
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+        run: |
+          # 因為 imaplib 和 os 都是 Python 內建套件，所以這裡甚至不需要 pip install！
+          python clear_mail.py
