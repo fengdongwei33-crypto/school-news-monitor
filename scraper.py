@@ -47,19 +47,26 @@ def clean_body_and_attachments(msg):
                     body = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='ignore')
                 elif content_type == "text/html" and not body:
                     html = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='ignore')
-                    body = BeautifulSoup(html, "html.parser").get_text()
+                    # 加入 separator 讓 HTML 標籤轉成漂亮換行
+                    body = BeautifulSoup(html, "html.parser").get_text(separator='\n')
         else:
-            body = msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='ignore')
+            # 【關鍵修復】處理圖書館這種「單一 HTML 包裹」的信件
+            content_type = msg.get_content_type()
+            raw_body = msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='ignore')
+            if "html" in content_type:
+                body = BeautifulSoup(raw_body, "html.parser").get_text(separator='\n')
+            else:
+                body = raw_body
     except Exception as e:
         print(f"解析內文發生錯誤: {e}")
         
-    # 優化排版：保留換行與段落，去除多餘的空白行，讓長文好閱讀
+    # 優化排版：保留換行與段落，去除多餘的空白行
     lines = [line.strip() for line in body.splitlines() if line.strip()]
     full_text = "\n".join(lines)
     
-    # 拔除 250 字限制，改為 Telegram 3500 字安全防護線
+    # 3500 字安全防護線
     if len(full_text) > 3500:
-        full_text = full_text[:3500] + " ...\n\n(⚠️ 信件過長，為避免推播失敗，請至 Webmail 觀看完整內容)"
+        full_text = full_text[:3500] + "\n\n(⚠️ 信件過長，為避免推播失敗，請至 Webmail 觀看完整內容)"
         
     return full_text.replace('<', '&lt;').replace('>', '&gt;'), attachments
 
