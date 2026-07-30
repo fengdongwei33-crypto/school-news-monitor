@@ -1,3 +1,6 @@
+【轉知】ESAM協會舉辦線上課程「資安鑑識課程-系列I初級課程：MOVIE-MATRIX：駭客-逆向&換位思考駭客 for breaking網站攻防實務」
+【資安/Security】教育部資安攻防演練狀況提醒(目前已遭發現12個漏洞)
+【電子計算機中心公告】8月9日(日) 09:00~12:00期間對校外網路服務短暫(約10分鐘內)中斷通知。（Notification: network service interruption.）
 【電子計算機中心公告】因無線網路系統調整，8月7日(五)9:00~12:00 無法使用無線網路。（Notification: Wi-Fi network service interruption.）
 【Forwarded Message】NSTC計畫徵求─2028-2033年度臺荷(NSTC -NWO)雙邊協議國際合作研究計畫(NSTC-NWO Bilateral Agreement International Cooperative Research Project)
 【施工公告】「學生二舍耐震補強暨外牆修繕工程」1-10樓施工架拆除作業(Construction Announcement for 2nd StudentDorm.)
@@ -5,6 +8,3 @@
 校外活動及競賽訊息轉知
 【Forwarded Message】「教育部115年氣候變遷講習活動」簡章1份，歡迎教師參加。
 【轉知】徵稿訊息。
-【歡迎報名】115年度電磁應用與實務暨天線量測技術訓練課程
-【Forwarded Message】NSTC計畫徵求─115年度「薪火相傳-稀少科研技術永續傳承計畫」試辦方案（Passing the Torch – Sustainable Inheritance Program for Rare Scientific Research Techniques)
-【轉知】第六屆「國際開發援助現場論壇」The 6th Development Focus Forum
